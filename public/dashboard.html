@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UbuntuAid - Crisis Response</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f9f9f9; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 500; }
+        .glass-card-red { background: linear-gradient(145deg, #ef4444, #dc2626); }
+        .glass-card-green { background: linear-gradient(145deg, #22c55e, #16a34a); }
+        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.active { opacity: 1; visibility: visible; }
+        .tab-active {
+            border-bottom: 3px solid #dc2626;
+            color: #dc2626;
+        }
+        .chat-item:hover {
+            background: #fef2f2;
+            transform: translateX(4px);
+        }
+        .unread-badge {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .stat-card {
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .counter-pulse {
+            animation: counterPop 0.5s ease-out;
+        }
+        @keyframes counterPop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); color: #dc2626; }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+        <div class="flex justify-between items-center px-5 h-16 max-w-[800px] mx-auto">
+            <h1 class="text-2xl font-extrabold text-red-600 tracking-tighter">UBUNTUAID</h1>
+            <div class="flex items-center gap-2">
+                <a href="/profile" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <span id="headerIcon" class="text-2xl">🍎</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="bg-white border-b border-gray-200 sticky top-16 z-40">
+        <div class="max-w-[800px] mx-auto flex">
+            <button onclick="switchTab('emergency')" id="tabEmergency" class="flex-1 py-3 text-center font-semibold text-gray-600 transition-all tab-active">
+                <span class="material-symbols-outlined align-middle text-lg">warning</span>
+                <span class="ml-1">Emergency</span>
+            </button>
+            <button onclick="switchTab('map')" id="tabMap" class="flex-1 py-3 text-center font-semibold text-gray-600 transition-all">
+                <span class="material-symbols-outlined align-middle text-lg">map</span>
+                <span class="ml-1">Map</span>
+            </button>
+            <button onclick="switchTab('chats')" id="tabChats" class="flex-1 py-3 text-center font-semibold text-gray-600 transition-all">
+                <span class="material-symbols-outlined align-middle text-lg">chat</span>
+                <span class="ml-1">Chats</span>
+                <span id="chatBadge" class="hidden ml-1 bg-red-600 text-white text-xs rounded-full px-1.5 py-0.5"></span>
+            </button>
+        </div>
+    </div>
+
+    <main class="flex-grow max-w-[800px] mx-auto w-full p-5 pb-32">
+        <!-- Emergency Tab Content -->
+        <div id="emergencyTab" class="tab-content">
+            <div id="userStatus" class="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200 hidden">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span id="userIcon" class="text-3xl">🍎</span>
+                        <div>
+                            <span class="font-semibold text-blue-800" id="userName"></span>
+                            <span class="text-sm text-blue-600 ml-2" id="userNeighborhood"></span>
+                        </div>
+                    </div>
+                    <button onclick="logout()" class="text-sm text-red-600">Switch User</button>
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="stat-card bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="material-symbols-outlined text-red-600">emergency</span>
+                        <span class="text-xs text-gray-400">Active</span>
+                    </div>
+                    <div class="text-2xl font-black text-gray-900" id="activeRequestsCount">0</div>
+                    <div class="text-xs text-gray-500 mt-1">active help requests</div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="material-symbols-outlined text-orange-600">priority_high</span>
+                        <span class="text-xs text-gray-400">Urgent</span>
+                    </div>
+                    <div class="text-2xl font-black text-gray-900" id="urgentRequestsCount">0</div>
+                    <div class="text-xs text-gray-500 mt-1">urgent cases</div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="material-symbols-outlined text-green-600">volunteer_activism</span>
+                        <span class="text-xs text-gray-400">Responders</span>
+                    </div>
+                    <div class="text-2xl font-black text-gray-900" id="respondersCount">0</div>
+                    <div class="text-xs text-gray-500 mt-1">active helpers</div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="material-symbols-outlined text-blue-600">favorite</span>
+                        <span class="text-xs text-gray-400">24h</span>
+                    </div>
+                    <div class="text-2xl font-black text-gray-900" id="helpedTodayCount">0</div>
+                    <div class="text-xs text-gray-500 mt-1">people helped</div>
+                </div>
+            </div>
+
+            <div class="py-4 text-center">
+                <h2 class="text-2xl font-black text-gray-900">Ready to help or need help?</h2>
+                <p class="text-gray-500 mt-2">Your neighbors are nearby. Low-bandwidth mode active.</p>
+            </div>
+            <div class="flex flex-col gap-6 mt-4">
+                <button onclick="needHelp()" class="glass-card-red relative overflow-hidden flex flex-col items-center justify-center gap-5 p-10 rounded-2xl active:scale-[0.98] transition-all text-white">
+                    <div class="bg-white/20 p-6 rounded-full">
+                        <span class="material-symbols-outlined text-white text-6xl" style="font-variation-settings:'FILL'1">emergency_share</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-4xl font-black block tracking-tight">I NEED HELP</span>
+                        <span class="text-white/80 text-sm uppercase tracking-widest mt-1">Immediate Assistance</span>
+                    </div>
+                </button>
+                <button onclick="canHelp()" class="glass-card-green relative overflow-hidden flex flex-col items-center justify-center gap-5 p-10 rounded-2xl active:scale-[0.98] transition-all text-white">
+                    <div class="bg-white/20 p-6 rounded-full">
+                        <span class="material-symbols-outlined text-white text-6xl" style="font-variation-settings:'FILL'1">volunteer_activism</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-4xl font-black block tracking-tight">I CAN HELP</span>
+                        <span class="text-white/80 text-sm uppercase tracking-widest mt-1">Offer Support</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Map Tab Content -->
+        <div id="mapTab" class="tab-content hidden">
+            <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200" style="height: 70vh; position: relative;">
+                <iframe src="/map" class="w-full h-full border-0" title="Crisis Map" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+            </div>
+            <p class="text-xs text-gray-500 text-center mt-3">
+                🗺️ Showing active crises | Click markers for details | Drag to pan, pinch to zoom
+            </p>
+        </div>
+
+        <!-- Chats Tab Content -->
+        <div id="chatsTab" class="tab-content hidden">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Active Conversations</h2>
+                <p class="text-sm text-gray-500">Chat with people you're helping or being helped by</p>
+            </div>
+            <div id="chatsList" class="space-y-3">
+                <div class="text-center py-10 text-gray-500">Loading your conversations...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Registration Modal -->
+    <div id="registerModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div class="bg-red-600 text-white p-6 rounded-t-2xl">
+                <h3 class="text-2xl font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined">person_add</span>
+                    Join UbuntuAid
+                </h3>
+                <p class="text-red-100 mt-1">One-time setup to connect with your community</p>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                    <input type="text" id="regName" placeholder="e.g., Maria Gonzalez" class="w-full p-3 border border-gray-300 rounded-xl">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                    <input type="tel" id="regPhone" placeholder="e.g., +1234567890" class="w-full p-3 border border-gray-300 rounded-xl">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Neighborhood / Area</label>
+                    <input type="text" id="regNeighborhood" placeholder="e.g., Downtown, Northside" class="w-full p-3 border border-gray-300 rounded-xl">
+                </div>
+                <button onclick="registerUser()" class="w-full bg-red-600 text-white p-3 rounded-xl font-bold text-lg hover:bg-red-700 transition-all">
+                    Join Community
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Modal -->
+    <div id="messageModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl text-center p-6">
+            <div id="messageIcon" class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100">
+                <span class="material-symbols-outlined text-green-600 text-3xl">check_circle</span>
+            </div>
+            <h3 id="messageTitle" class="text-xl font-bold text-gray-900 mb-2">Success!</h3>
+            <p id="messageText" class="text-gray-600 mb-6">Operation completed successfully.</p>
+            <button onclick="closeMessageModal()" class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold">OK</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null, socket = null;
+        let activeTab = 'emergency';
+        let chatRefreshInterval = null;
+        let statsRefreshInterval = null;
+
+        function showMessage(title, text, isError = false) {
+            const modal = document.getElementById('messageModal');
+            const icon = document.getElementById('messageIcon');
+            const titleEl = document.getElementById('messageTitle');
+            const textEl = document.getElementById('messageText');
+            
+            if (isError) {
+                icon.innerHTML = '<span class="material-symbols-outlined text-red-600 text-3xl">error</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-100';
+                titleEl.className = 'text-xl font-bold text-red-600 mb-2';
+            } else {
+                icon.innerHTML = '<span class="material-symbols-outlined text-green-600 text-3xl">check_circle</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100';
+                titleEl.className = 'text-xl font-bold text-gray-900 mb-2';
+            }
+            
+            titleEl.innerText = title;
+            textEl.innerText = text;
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeMessageModal() {
+            const modal = document.getElementById('messageModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            const emergencyTab = document.getElementById('emergencyTab');
+            const mapTab = document.getElementById('mapTab');
+            const chatsTab = document.getElementById('chatsTab');
+            const tabEmergency = document.getElementById('tabEmergency');
+            const tabMap = document.getElementById('tabMap');
+            const tabChats = document.getElementById('tabChats');
+            
+            emergencyTab.classList.add('hidden');
+            mapTab.classList.add('hidden');
+            chatsTab.classList.add('hidden');
+            
+            tabEmergency.classList.remove('tab-active');
+            tabMap.classList.remove('tab-active');
+            tabChats.classList.remove('tab-active');
+            
+            if (tab === 'emergency') {
+                emergencyTab.classList.remove('hidden');
+                tabEmergency.classList.add('tab-active');
+                if (chatRefreshInterval) clearInterval(chatRefreshInterval);
+                if (!statsRefreshInterval) statsRefreshInterval = setInterval(loadDashboardStats, 15000);
+            } else if (tab === 'map') {
+                mapTab.classList.remove('hidden');
+                tabMap.classList.add('tab-active');
+                if (chatRefreshInterval) clearInterval(chatRefreshInterval);
+                if (statsRefreshInterval) clearInterval(statsRefreshInterval);
+            } else if (tab === 'chats') {
+                chatsTab.classList.remove('hidden');
+                tabChats.classList.add('tab-active');
+                loadActiveChats();
+                chatRefreshInterval = setInterval(loadActiveChats, 10000);
+                if (statsRefreshInterval) clearInterval(statsRefreshInterval);
+            }
+        }
+
+        async function loadDashboardStats() {
+            if (!currentUser) return;
+            try {
+                const response = await fetch('/api/stats/dashboard');
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('activeRequestsCount').innerText = data.stats.active_requests;
+                    document.getElementById('urgentRequestsCount').innerText = data.stats.urgent_requests;
+                    document.getElementById('respondersCount').innerText = data.stats.active_responders;
+                    document.getElementById('helpedTodayCount').innerText = data.stats.helped_today;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadActiveChats() {
+            if (!currentUser) return;
+            try {
+                const response = await fetch(`/api/chat/my-chats/${currentUser.id}`);
+                const chats = await response.json();
+                const container = document.getElementById('chatsList');
+                const chatBadge = document.getElementById('chatBadge');
+                
+                const totalUnread = chats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
+                if (totalUnread > 0) {
+                    chatBadge.classList.remove('hidden');
+                    chatBadge.innerText = totalUnread > 9 ? '9+' : totalUnread;
+                } else {
+                    chatBadge.classList.add('hidden');
+                }
+                
+                if (!chats || chats.length === 0) {
+                    container.innerHTML = '<div class="text-center py-12 bg-white rounded-xl border border-gray-200">No active conversations</div>';
+                    return;
+                }
+                
+                container.innerHTML = chats.map(chat => `
+                    <div onclick="openChat('${chat.request_id}')" class="chat-item bg-white rounded-xl p-4 shadow-sm border border-gray-200 cursor-pointer">
+                        <div class="flex items-start gap-3">
+                            <div class="text-4xl">${chat.other_user.profile_icon || '👤'}</div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-1">
+                                    <h3 class="font-bold">${escapeHtml(chat.other_user.name)}</h3>
+                                    <span class="text-xs text-gray-400">${chat.last_message_time ? new Date(chat.last_message_time).toLocaleTimeString() : 'Just now'}</span>
+                                </div>
+                                <p class="text-sm text-gray-600 truncate">${chat.last_message ? escapeHtml(chat.last_message.substring(0, 50)) : 'No messages yet'}</p>
+                            </div>
+                            ${chat.unread_count > 0 ? `<div class="bg-red-600 text-white text-xs font-bold rounded-full min-w-[24px] h-6 flex items-center justify-center px-2">${chat.unread_count}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading chats:', error);
+            }
+        }
+
+        function openChat(requestId) {
+            window.location.href = `/chat?request_id=${requestId}`;
+        }
+
+        function showRegisterModal() {
+            const modal = document.getElementById('registerModal');
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeRegisterModal() {
+            const modal = document.getElementById('registerModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        async function registerUser() {
+            const name = document.getElementById('regName').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
+            const neighborhood = document.getElementById('regNeighborhood').value.trim();
+            
+            if (!name || !phone || !neighborhood) {
+                showMessage('Missing Information', 'Please fill in all fields.', true);
+                return;
+            }
+            
+            let lat = null, lng = null;
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+                    });
+                    lat = pos.coords.latitude;
+                    lng = pos.coords.longitude;
+                } catch(e) {}
+            }
+            
+            try {
+                const resp = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, phone_number: phone, neighborhood, latitude: lat, longitude: lng, profile_icon: '🍎' })
+                });
+                const data = await resp.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    localStorage.setItem('ubuntuAid_user', JSON.stringify(currentUser));
+                    closeRegisterModal();
+                    document.getElementById('userStatus').classList.remove('hidden');
+                    document.getElementById('userName').innerText = currentUser.name;
+                    document.getElementById('userNeighborhood').innerText = currentUser.neighborhood;
+                    document.getElementById('userIcon').innerText = currentUser.profile_icon || '🍎';
+                    document.getElementById('headerIcon').innerText = currentUser.profile_icon || '🍎';
+                    initSocket();
+                    loadDashboardStats();
+                } else {
+                    showMessage('Registration Failed', data.error || 'Please try again.', true);
+                }
+            } catch (error) {
+                showMessage('Connection Error', 'Unable to connect to server.', true);
+            }
+        }
+
+        async function checkUserStatus() {
+            const saved = localStorage.getItem('ubuntuAid_user');
+            if (saved) {
+                currentUser = JSON.parse(saved);
+                document.getElementById('userStatus').classList.remove('hidden');
+                document.getElementById('userName').innerText = currentUser.name;
+                document.getElementById('userNeighborhood').innerText = currentUser.neighborhood;
+                document.getElementById('userIcon').innerText = currentUser.profile_icon || '🍎';
+                document.getElementById('headerIcon').innerText = currentUser.profile_icon || '🍎';
+                initSocket();
+                loadDashboardStats();
+                statsRefreshInterval = setInterval(loadDashboardStats, 15000);
+            } else {
+                showRegisterModal();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('ubuntuAid_user');
+            currentUser = null;
+            document.getElementById('userStatus').classList.add('hidden');
+            if (socket) socket.disconnect();
+            if (chatRefreshInterval) clearInterval(chatRefreshInterval);
+            if (statsRefreshInterval) clearInterval(statsRefreshInterval);
+            showMessage('Logged Out', 'You have been logged out.', false);
+            setTimeout(() => location.reload(), 1500);
+        }
+
+        function initSocket() {
+            socket = io();
+            socket.on('connect', () => {
+                if (currentUser) socket.emit('register', currentUser.id);
+            });
+            socket.on('emergency_alert', () => {
+                loadDashboardStats();
+            });
+        }
+
+        function needHelp() {
+            if (!currentUser) { showRegisterModal(); return; }
+            window.location.href = '/request';
+        }
+
+        function canHelp() {
+            if (!currentUser) { showRegisterModal(); return; }
+            window.location.href = '/view-requests';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        checkUserStatus();
+    </script>
+</body>
+</html>

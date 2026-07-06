@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Request - UbuntuAid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f9f9f9; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+        .active-selection { background: #b70011 !important; color: white !important; }
+        .active-selection .material-symbols-outlined { color: white !important; font-variation-settings: 'FILL' 1; }
+        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.active { opacity: 1; visibility: visible; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .sending-pulse { animation: pulse 1s ease-in-out infinite; }
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(100px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="flex items-center px-5 h-14 max-w-[800px] mx-auto">
+            <a href="/" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100">
+                <span class="material-symbols-outlined text-red-600">arrow_back</span>
+            </a>
+            <h1 class="text-xl font-bold ml-2">Emergency Request</h1>
+        </div>
+    </header>
+
+    <main class="max-w-[800px] mx-auto w-full p-5 pb-32">
+        <p class="text-gray-600 mb-6">What do you need immediately? Select all that apply.</p>
+        
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <button class="group flex flex-col items-start justify-between aspect-[1.1/1] rounded-2xl bg-white shadow p-5 transition-all border border-gray-200" data-category="Water" onclick="toggleCard(this)">
+                <span class="material-symbols-outlined text-4xl text-blue-500">water_drop</span>
+                <span class="font-bold">Water</span>
+            </button>
+            <button class="group flex flex-col items-start justify-between aspect-[1.1/1] rounded-2xl bg-white shadow p-5 transition-all border border-gray-200" data-category="Food" onclick="toggleCard(this)">
+                <span class="material-symbols-outlined text-4xl text-orange-500">fastfood</span>
+                <span class="font-bold">Food</span>
+            </button>
+            <button class="group flex flex-col items-start justify-between aspect-[1.1/1] rounded-2xl bg-white shadow p-5 transition-all border border-gray-200" data-category="Shelter" onclick="toggleCard(this)">
+                <span class="material-symbols-outlined text-4xl text-gray-600">home</span>
+                <span class="font-bold">Shelter</span>
+            </button>
+            <button class="group flex flex-col items-start justify-between aspect-[1.1/1] rounded-2xl bg-white shadow p-5 transition-all border border-gray-200" data-category="Medical" onclick="toggleCard(this)">
+                <span class="material-symbols-outlined text-4xl text-red-600">medical_services</span>
+                <span class="font-bold">Medical</span>
+            </button>
+            <button class="group flex flex-col items-start justify-between aspect-[1.1/1] rounded-2xl bg-white shadow p-5 transition-all border border-gray-200" data-category="Rescue" onclick="toggleCard(this)">
+                <span class="material-symbols-outlined text-4xl text-red-800">emergency</span>
+                <span class="font-bold">Rescue</span>
+            </button>
+            <button class="group flex flex-col items-start justify-between aspect-[1.1/1] rounded-2xl bg-white shadow p-5 transition-all border border-gray-200" data-category="Other" onclick="toggleCard(this)">
+                <span class="material-symbols-outlined text-4xl text-gray-500">more_horiz</span>
+                <span class="font-bold">Other</span>
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <label class="font-semibold block mb-2">Location (nearest landmark or street)</label>
+            <input type="text" id="location" placeholder="e.g., Near the old market, Main St & 5th" class="w-full p-4 border border-gray-300 rounded-xl">
+            <p class="text-xs text-gray-400 mt-1">📍 We'll try to get your GPS automatically</p>
+        </div>
+        
+        <div class="mb-6">
+            <label class="font-semibold block mb-2">Urgency Level</label>
+            <select id="urgency" class="w-full p-4 border border-gray-300 rounded-xl">
+                <option value="urgent">🚨 URGENT - Immediate danger</option>
+                <option value="high">⚠️ HIGH - Need within hours</option>
+                <option value="normal">📋 NORMAL - Can wait</option>
+            </select>
+        </div>
+        
+        <button id="broadcastBtn" onclick="broadcastEmergency()" class="w-full bg-red-600 text-white p-5 rounded-xl font-bold text-lg shadow-lg transition-all relative overflow-hidden">
+            <span class="relative z-10 flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined">podcasts</span>
+                <span>BROADCAST SIGNAL</span>
+            </span>
+        </button>
+        
+        <!-- Progress Toast -->
+        <div id="progressToast" class="toast hidden bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden">
+            <div class="p-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-red-600 text-lg">sync</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-900" id="toastTitle">Sending emergency signal...</p>
+                        <p class="text-xs text-gray-500" id="toastMessage">Attempting to connect to nearby responders</p>
+                    </div>
+                </div>
+                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="progressBar" class="progress-bar h-full bg-red-600 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Message Modal -->
+    <div id="messageModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl text-center p-6 transform transition-all">
+            <div id="messageIcon" class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center">
+                <span class="material-symbols-outlined text-3xl">check_circle</span>
+            </div>
+            <h3 id="messageTitle" class="text-xl font-bold mb-2">Success!</h3>
+            <p id="messageText" class="text-gray-600 mb-6">Operation completed successfully.</p>
+            <button onclick="closeMessageModal()" class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors">OK</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedCategories = new Set();
+        let broadcastInProgress = false;
+        
+        function showMessage(title, text, isError = false) {
+            const modal = document.getElementById('messageModal');
+            const icon = document.getElementById('messageIcon');
+            const titleEl = document.getElementById('messageTitle');
+            const textEl = document.getElementById('messageText');
+            
+            if (isError) {
+                icon.innerHTML = '<span class="material-symbols-outlined text-red-600 text-3xl">error</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-100';
+                titleEl.className = 'text-xl font-bold text-red-600 mb-2';
+            } else {
+                icon.innerHTML = '<span class="material-symbols-outlined text-green-600 text-3xl">check_circle</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100';
+                titleEl.className = 'text-xl font-bold text-gray-900 mb-2';
+            }
+            
+            titleEl.innerText = title;
+            textEl.innerText = text;
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+        
+        function closeMessageModal() {
+            const modal = document.getElementById('messageModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+        
+        function showToast(title, message, progress = null) {
+            const toast = document.getElementById('progressToast');
+            const titleEl = document.getElementById('toastTitle');
+            const msgEl = document.getElementById('toastMessage');
+            const progressBar = document.getElementById('progressBar');
+            
+            titleEl.innerText = title;
+            msgEl.innerText = message;
+            
+            if (progress !== null) {
+                progressBar.style.width = `${progress}%`;
+            }
+            
+            toast.classList.remove('hidden');
+        }
+        
+        function hideToast() {
+            const toast = document.getElementById('progressToast');
+            toast.classList.add('hidden');
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = '0%';
+        }
+        
+        function updateToastProgress(progress, message) {
+            const progressBar = document.getElementById('progressBar');
+            const msgEl = document.getElementById('toastMessage');
+            progressBar.style.width = `${progress}%`;
+            if (message) msgEl.innerText = message;
+        }
+        
+        function getCurrentUser() {
+            const user = localStorage.getItem('ubuntuAid_user');
+            if (!user) {
+                showMessage('Not Registered', 'Please register first from the home page.', true);
+                setTimeout(() => window.location.href = '/', 2000);
+                return null;
+            }
+            return JSON.parse(user);
+        }
+        
+        function toggleCard(btn) {
+            if (broadcastInProgress) {
+                showMessage('Action Blocked', 'Please wait, broadcast already in progress.', true);
+                return;
+            }
+            
+            const cat = btn.getAttribute('data-category');
+            btn.classList.toggle('active-selection');
+            if (btn.classList.contains('active-selection')) {
+                selectedCategories.add(cat);
+                if (navigator.vibrate) navigator.vibrate(50);
+            } else {
+                selectedCategories.delete(cat);
+            }
+        }
+        
+        async function broadcastEmergency() {
+            if (broadcastInProgress) {
+                showMessage('Broadcast in Progress', 'Please wait for the current broadcast to complete.', true);
+                return;
+            }
+            
+            const user = getCurrentUser();
+            if (!user) return;
+            
+            if (selectedCategories.size === 0) {
+                showMessage('No Selection', 'Please select at least one type of help needed.', true);
+                return;
+            }
+            
+            broadcastInProgress = true;
+            const btn = document.getElementById('broadcastBtn');
+            const originalHTML = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.classList.add('opacity-75', 'sending-pulse');
+            btn.innerHTML = `
+                <span class="relative z-10 flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined animate-spin">sync</span>
+                    <span>SENDING SIGNAL...</span>
+                </span>
+            `;
+            
+            showToast('Sending emergency signal...', 'Preparing request...', 0);
+            
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += 10;
+                    updateToastProgress(progress, progress < 30 ? 'Getting location...' : 
+                                                   progress < 60 ? 'Connecting to responders...' : 
+                                                   'Broadcasting signal...');
+                }
+            }, 300);
+            
+            const locationText = document.getElementById('location').value;
+            const urgency = document.getElementById('urgency').value;
+            
+            let lat = null, lng = null;
+            
+            updateToastProgress(20, 'Getting your location...');
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { 
+                            timeout: 10000,
+                            enableHighAccuracy: true 
+                        });
+                    });
+                    lat = pos.coords.latitude;
+                    lng = pos.coords.longitude;
+                    updateToastProgress(40, '📍 Location acquired via GPS');
+                } catch(e) { 
+                    console.log('GPS unavailable, using manual location');
+                    updateToastProgress(40, '📍 Using provided location');
+                }
+            }
+            
+            updateToastProgress(60, 'Preparing emergency packet...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+                updateToastProgress(70, 'Sending to nearby responders...');
+                
+                const response = await fetch('/api/requests/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: user.id,
+                        categories: Array.from(selectedCategories),
+                        latitude: lat,
+                        longitude: lng,
+                        location_text: locationText || user.neighborhood,
+                        urgency: urgency
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateToastProgress(100, '✓ Broadcast successful!');
+                    clearInterval(progressInterval);
+                    
+                    btn.innerHTML = `
+                        <span class="relative z-10 flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined">check_circle</span>
+                            <span>BROADCAST SENT!</span>
+                        </span>
+                    `;
+                    btn.classList.remove('bg-red-600');
+                    btn.classList.add('bg-green-600');
+                    
+                    setTimeout(() => {
+                        hideToast();
+                    }, 1500);
+                    
+                    const responderCount = data.nearby_responders_count || 'nearby';
+                    showMessage(
+                        '🚨 Emergency Broadcasted!', 
+                        `Your request has been sent to ${responderCount} responders in your area.\n\nHelp is on the way. Stay safe.`,
+                        false
+                    );
+                    
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+                } else {
+                    throw new Error(data.error || 'Broadcast failed');
+                }
+            } catch (error) {
+                console.error('Broadcast error:', error);
+                clearInterval(progressInterval);
+                hideToast();
+                
+                btn.innerHTML = `
+                    <span class="relative z-10 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">error</span>
+                        <span>BROADCAST FAILED</span>
+                    </span>
+                `;
+                btn.classList.remove('bg-red-600');
+                btn.classList.add('bg-gray-600');
+                
+                showMessage(
+                    'Broadcast Failed', 
+                    'Unable to send emergency signal. Please check your connection and try again.\n\nError: ' + error.message,
+                    true
+                );
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75', 'sending-pulse', 'bg-gray-600');
+                    btn.classList.add('bg-red-600');
+                    btn.innerHTML = originalHTML;
+                    broadcastInProgress = false;
+                }, 3000);
+                return;
+            }
+            
+            clearInterval(progressInterval);
+            broadcastInProgress = false;
+        }
+        
+        window.addEventListener('load', () => {
+            const user = localStorage.getItem('ubuntuAid_user');
+            if (!user) {
+                showMessage('Welcome', 'Please register first from the home page to continue.', false);
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

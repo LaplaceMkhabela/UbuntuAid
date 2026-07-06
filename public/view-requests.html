@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nearby Requests - UbuntuAid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <style>
+        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.active { opacity: 1; visibility: visible; }
+    </style>
+</head>
+<body>
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="flex items-center px-5 h-14 max-w-[800px] mx-auto">
+            <a href="/" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100">
+                <span class="material-symbols-outlined text-red-600">arrow_back</span>
+            </a>
+            <h1 class="text-xl font-bold ml-2">Nearby Requests</h1>
+        </div>
+    </header>
+    
+    <main class="max-w-[800px] mx-auto w-full p-5 pb-32">
+        <div id="requestsList" class="space-y-4">
+            <div class="text-center py-10 text-gray-500">Loading requests...</div>
+        </div>
+    </main>
+
+    <!-- Message Modal -->
+    <div id="messageModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl text-center p-6">
+            <div id="messageIcon" class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center">
+                <span class="material-symbols-outlined text-3xl">check_circle</span>
+            </div>
+            <h3 id="messageTitle" class="text-xl font-bold mb-2">Success!</h3>
+            <p id="messageText" class="text-gray-600 mb-6">Operation completed successfully.</p>
+            <button onclick="closeMessageModal()" class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold">OK</button>
+        </div>
+    </div>
+
+    <script>
+        function showMessage(title, text, isError = false) {
+            const modal = document.getElementById('messageModal');
+            const icon = document.getElementById('messageIcon');
+            const titleEl = document.getElementById('messageTitle');
+            const textEl = document.getElementById('messageText');
+            
+            if (isError) {
+                icon.innerHTML = '<span class="material-symbols-outlined text-red-600 text-3xl">error</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-100';
+                titleEl.className = 'text-xl font-bold text-red-600 mb-2';
+            } else {
+                icon.innerHTML = '<span class="material-symbols-outlined text-green-600 text-3xl">check_circle</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100';
+                titleEl.className = 'text-xl font-bold text-gray-900 mb-2';
+            }
+            
+            titleEl.innerText = title;
+            textEl.innerText = text;
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeMessageModal() {
+            const modal = document.getElementById('messageModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        async function loadRequests() {
+            const user = localStorage.getItem('ubuntuAid_user');
+            if (!user) {
+                showMessage('Not Registered', 'Please register first from the home page.', true);
+                setTimeout(() => window.location.href = '/', 2000);
+                return;
+            }
+            const userData = JSON.parse(user);
+            let lat = null, lng = null;
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+                    });
+                    lat = pos.coords.latitude;
+                    lng = pos.coords.longitude;
+                } catch(e) { console.log('Location unavailable'); }
+            }
+            
+            let url = `/api/requests/active?user_id=${userData.id}`;
+            if (lat && lng) url += `&latitude=${lat}&longitude=${lng}`;
+            
+            const resp = await fetch(url);
+            const requests = await resp.json();
+            const container = document.getElementById('requestsList');
+            
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="text-center py-10 text-gray-500">No active requests nearby. Check back soon.</div>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(req => `
+                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold text-gray-700">${req.distance_display || 'Location unknown'}</span>
+                        <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase">${req.urgency}</span>
+                    </div>
+                    <div class="flex gap-2 mb-2">
+                        ${req.categories.split(',').map(c => `<span class="bg-gray-100 px-3 py-1 rounded-full text-sm">${c}</span>`).join('')}
+                    </div>
+                    <p class="text-lg font-bold text-gray-900 mb-1">Request from ${req.user_name}</p>
+                    <p class="text-sm text-gray-600 mb-3">📍 ${req.location_text || req.neighborhood}</p>
+                    <button onclick="acceptRequest('${req.request_id}')" class="w-full bg-red-600 text-white py-3 rounded-lg font-bold active:scale-[0.98] transition-all">
+                        I WILL HELP
+                    </button>
+                </div>
+            `).join('');
+        }
+        
+        async function acceptRequest(requestId) {
+            const user = localStorage.getItem('ubuntuAid_user');
+            if (!user) return;
+            const userData = JSON.parse(user);
+            const btn = event.currentTarget;
+            const original = btn.innerText;
+            btn.innerText = 'ACCEPTING...';
+            btn.disabled = true;
+            
+            try {
+                const resp = await fetch('/api/requests/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ request_id: requestId, responder_id: userData.id })
+                });
+                const data = await resp.json();
+                
+                if (data.success) {
+                    showMessage('Request Accepted!', 'You can now chat with the person who needs help. Opening chat...', false);
+                    setTimeout(() => {
+                        window.location.href = `/chat?request_id=${requestId}&match_id=${data.chat_id}`;
+                    }, 1500);
+                } else {
+                    showMessage('Unable to Accept', data.error || 'This request may have been taken already.', true);
+                    btn.innerText = original;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                showMessage('Connection Error', 'Failed to accept request. Please try again.', true);
+                btn.innerText = original;
+                btn.disabled = false;
+            }
+        }
+        
+        loadRequests();
+        setInterval(loadRequests, 30000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Crisis Map - UbuntuAid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #f9f9f9;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        /* Map container - ensure proper sizing and interaction */
+        #map { 
+            height: 100vh; 
+            width: 100vw;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        
+        /* Ensure Leaflet map captures all interactions */
+        .leaflet-container {
+            cursor: grab;
+            z-index: 1;
+        }
+        
+        .leaflet-container:active {
+            cursor: grabbing;
+        }
+        
+        /* Header - higher z-index than map */
+        .map-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+        }
+        
+        /* Stats bar - above map but below header */
+        .stats-bar {
+            position: fixed;
+            top: 70px;
+            right: 10px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            padding: 8px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        
+        /* Modal - highest z-index */
+        .modal { 
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 2000;
+            position: fixed;
+        }
+        .modal.active { 
+            opacity: 1; 
+            visibility: visible; 
+        }
+        
+        /* Legend styling - above map */
+        .legend {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 12px;
+            line-height: 1.4;
+            min-width: 140px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 3px;
+            background: #3b82f6;
+            margin-right: 8px;
+        }
+        
+        /* Control buttons styling */
+        .control-button {
+            background: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .control-button:hover {
+            background: #f3f4f6;
+            transform: scale(1.05);
+        }
+        
+        /* Custom popup styling - crisp text */
+        .leaflet-popup-content {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #1f2937;
+            min-width: 220px;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        /* Ensure map controls are clickable */
+        .leaflet-control-zoom {
+            z-index: 100;
+        }
+        
+        .leaflet-control-attribution {
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header - above map -->
+    <div class="map-header">
+        <div class="flex items-center justify-between px-5 h-14">
+            <div class="flex items-center">
+                <a href="/" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 transition-colors">
+                    <span class="material-symbols-outlined text-red-600">arrow_back</span>
+                </a>
+                <h1 class="text-xl font-bold ml-2 text-gray-900">Crisis Map</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="centerOnUser()" class="control-button" title="Center on my location">
+                    <span class="material-symbols-outlined text-lg">my_location</span>
+                    <span class="hidden sm:inline">Center</span>
+                </button>
+                <button onclick="refreshMap()" class="control-button" title="Refresh map">
+                    <span class="material-symbols-outlined text-lg">refresh</span>
+                    <span class="hidden sm:inline">Refresh</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="statsBar">
+        Loading...
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Crisis Details Modal -->
+    <div id="crisisModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div id="crisisHeader" class="bg-red-600 text-white p-5 rounded-t-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-2xl">emergency</span>
+                    <h3 class="text-xl font-bold">Crisis Details</h3>
+                </div>
+            </div>
+            <div class="p-6" id="crisisContent"></div>
+            <div class="p-4 border-t border-gray-200">
+                <button onclick="closeCrisisModal()" class="w-full bg-gray-200 text-gray-800 p-3 rounded-xl font-semibold hover:bg-gray-300 transition-all">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map = null;
+        let userMarker = null;
+        let crisisMarkers = [];
+        let radiusCircle = null;
+        let currentUser = null;
+        let refreshInterval = null;
+        let isDragging = false;
+
+        async function init() {
+            // Get user from localStorage
+            const userStr = localStorage.getItem('ubuntuAid_user');
+            if (!userStr) {
+                document.getElementById('statsBar').innerHTML = '⚠️ Please login first';
+                setTimeout(() => { window.location.href = '/'; }, 2000);
+                return;
+            }
+            currentUser = JSON.parse(userStr);
+            
+            // Initialize map with default view and interaction enabled
+            map = L.map('map', {
+                center: [0, 0],
+                zoom: 13,
+                zoomControl: true,
+                dragging: true,
+                touchZoom: true,
+                scrollWheelZoom: true,
+                doubleClickZoom: true,
+                boxZoom: true,
+                keyboard: true,
+                tap: true,
+                inertia: true
+            });
+            
+            // Add tile layer with proper attribution
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19,
+                minZoom: 3
+            }).addTo(map);
+            
+            // Add scale bar
+            L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
+            
+            // Add legend
+            const legend = L.control({ position: 'bottomright' });
+            legend.onAdd = function() {
+                const div = L.DomUtil.create('div', 'legend');
+                div.innerHTML = `
+                    <div class="legend-item"><div class="legend-color" style="background: #dc2626;"></div><span>Urgent Crisis</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #f97316;"></div><span>High Priority</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #3b82f6;"></div><span>Normal Priority</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div><span>Resolved (24h)</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #3b82f6; border-radius: 50%;"></div><span>Your Location</span></div>
+                    <div class="legend-item"><div class="legend-line"></div><span>50km Radius</span></div>
+                `;
+                return div;
+            };
+            legend.addTo(map);
+            
+            await loadUserLocation();
+            await loadCrises();
+            
+            // Auto-refresh every 30 seconds
+            refreshInterval = setInterval(loadCrises, 30000);
+        }
+
+        async function loadUserLocation() {
+            try {
+                const response = await fetch(`/api/map/user-location/${currentUser.id}`);
+                const data = await response.json();
+                
+                if (data.success && data.user.latitude && data.user.longitude) {
+                    const userLat = data.user.latitude;
+                    const userLng = data.user.longitude;
+                    
+                    // Create custom user icon
+                    const userIcon = L.divIcon({
+                        html: `<div style="background-color: #3b82f6; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><span style="font-size: 18px;">📍</span></div>`,
+                        iconSize: [32, 32],
+                        className: 'user-marker',
+                        popupAnchor: [0, -16]
+                    });
+                    
+                    // Remove existing marker if any
+                    if (userMarker) {
+                        map.removeLayer(userMarker);
+                    }
+                    if (radiusCircle) {
+                        map.removeLayer(radiusCircle);
+                    }
+                    
+                    // Add user marker
+                    userMarker = L.marker([userLat, userLng], { icon: userIcon })
+                        .addTo(map)
+                        .bindPopup(`
+                            <div class="text-center py-1">
+                                <div class="text-3xl mb-1">${data.user.profile_icon || '📍'}</div>
+                                <strong class="text-gray-900">${escapeHtml(data.user.name)}</strong><br>
+                                <span class="text-sm text-gray-600">${escapeHtml(data.user.neighborhood)}</span><br>
+                                <span class="text-xs text-gray-500 mt-1 block">📍 You are here</span>
+                            </div>
+                        `);
+                    
+                    // Add 50km radius circle
+                    radiusCircle = L.circle([userLat, userLng], {
+                        color: '#3b82f6',
+                        fillColor: '#3b82f6',
+                        fillOpacity: 0.08,
+                        radius: 50000,
+                        weight: 2,
+                        opacity: 0.5,
+                        className: 'radius-circle'
+                    }).addTo(map);
+                    
+                    // Center map on user if no previous view
+                    if (!map.getCenter().lat || map.getCenter().lat === 0) {
+                        map.setView([userLat, userLng], 9);
+                    }
+                    
+                    document.getElementById('statsBar').innerHTML = `📍 ${escapeHtml(data.user.neighborhood)} • Ready`;
+                } else {
+                    document.getElementById('statsBar').innerHTML = '📍 Location not set - Update in profile';
+                    map.setView([0, 0], 2);
+                }
+            } catch (error) {
+                console.error('Error loading user location:', error);
+                document.getElementById('statsBar').innerHTML = '❌ Location error';
+            }
+        }
+
+        async function loadCrises() {
+            try {
+                const response = await fetch('/api/map/crisis-locations');
+                const data = await response.json();
+                
+                // Clear existing markers
+                crisisMarkers.forEach(marker => {
+                    if (map) map.removeLayer(marker);
+                });
+                crisisMarkers = [];
+                
+                // Update stats bar
+                const activeCount = data.total_active || 0;
+                document.getElementById('statsBar').innerHTML = `🚨 ${activeCount} Active ${activeCount === 1 ? 'Crisis' : 'Crises'}`;
+                
+                // Add active crisis markers
+                if (data.active_crises && data.active_crises.length > 0) {
+                    data.active_crises.forEach(crisis => {
+                        if (crisis.latitude && crisis.longitude) {
+                            const colors = {
+                                urgent: '#dc2626',
+                                high: '#f97316',
+                                normal: '#3b82f6'
+                            };
+                            const color = colors[crisis.urgency] || '#6b7280';
+                            const size = crisis.urgency === 'urgent' ? 32 : 28;
+                            
+                            const markerIcon = L.divIcon({
+                                html: `<div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.25); cursor: pointer;"><span style="font-size: ${size === 32 ? '16px' : '14px'}; color: white;">⚠️</span></div>`,
+                                iconSize: [size, size],
+                                className: 'crisis-marker',
+                                popupAnchor: [0, -size/2]
+                            });
+                            
+                            const marker = L.marker([crisis.latitude, crisis.longitude], { icon: markerIcon })
+                                .addTo(map)
+                                .bindPopup(`
+                                    <div class="min-w-[200px]">
+                                        <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+                                            <div class="text-3xl">${crisis.profile_icon || '⚠️'}</div>
+                                            <div class="flex-1">
+                                                <strong class="text-gray-900 block">${escapeHtml(crisis.user_name)}</strong>
+                                                <span class="text-xs ${crisis.urgency === 'urgent' ? 'text-red-600 font-bold' : 'text-gray-500'}">${crisis.urgency.toUpperCase()}</span>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            ${crisis.categories ? crisis.categories.split(',').map(c => `<span class="inline-block bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs mr-1 mb-1">${escapeHtml(c)}</span>`).join('') : ''}
+                                        </div>
+                                        <div class="text-sm text-gray-600 mb-2 flex items-start gap-1">
+                                            <span>📍</span>
+                                            <span>${escapeHtml(crisis.location_text || 'Location provided')}</span>
+                                        </div>
+                                        <div class="text-xs text-gray-400">🕐 ${new Date(crisis.created_at).toLocaleString()}</div>
+                                        <button onclick="window.showCrisisDetailsModal(${JSON.stringify(crisis).replace(/"/g, '&quot;')})" 
+                                                class="w-full mt-3 bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">
+                                            View Details
+                                        </button>
+                                    </div>
+                                `);
+                            
+                            crisisMarkers.push(marker);
+                        }
+                    });
+                }
+                
+                // Add resolved markers (smaller, green checkmarks)
+                if (data.recent_resolved && data.recent_resolved.length > 0) {
+                    data.recent_resolved.forEach(resolved => {
+                        if (resolved.latitude && resolved.longitude) {
+                            const resolvedIcon = L.divIcon({
+                                html: `<div style="background-color: #10b981; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><span style="font-size: 12px;">✅</span></div>`,
+                                iconSize: [24, 24],
+                                className: 'resolved-marker',
+                                popupAnchor: [0, -12]
+                            });
+                            
+                            const marker = L.marker([resolved.latitude, resolved.longitude], { icon: resolvedIcon })
+                                .addTo(map)
+                                .bindPopup(`
+                                    <div class="min-w-[180px]">
+                                        <strong class="text-green-600 block mb-1">✅ Resolved Crisis</strong>
+                                        <span class="text-sm">Helped by ${escapeHtml(resolved.user_name)}</span><br>
+                                        <span class="text-xs text-gray-500">Resolved: ${new Date(resolved.resolved_at).toLocaleString()}</span>
+                                    </div>
+                                `);
+                            
+                            crisisMarkers.push(marker);
+                        }
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Error loading crises:', error);
+                document.getElementById('statsBar').innerHTML = '❌ Failed to load';
+            }
+        }
+
+        function showCrisisDetailsModal(crisis) {
+            showCrisisDetails(crisis);
+        }
+
+        function showCrisisDetails(crisis) {
+            const modal = document.getElementById('crisisModal');
+            const header = document.getElementById('crisisHeader');
+            const content = document.getElementById('crisisContent');
+            
+            // Change header color based on urgency
+            if (crisis.urgency === 'urgent') {
+                header.className = 'bg-red-600 text-white p-5 rounded-t-2xl';
+            } else if (crisis.urgency === 'high') {
+                header.className = 'bg-orange-600 text-white p-5 rounded-t-2xl';
+            } else {
+                header.className = 'bg-blue-600 text-white p-5 rounded-t-2xl';
+            }
+            
+            const categoriesList = crisis.categories ? crisis.categories.split(',').map(c => 
+                `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">${escapeHtml(c)}</span>`
+            ).join('') : '<span class="text-gray-500 text-sm">Not specified</span>';
+            
+            const urgencyEmoji = crisis.urgency === 'urgent' ? '🚨' : crisis.urgency === 'high' ? '⚠️' : '📋';
+            const urgencyText = crisis.urgency === 'urgent' ? 'URGENT' : crisis.urgency === 'high' ? 'HIGH' : 'NORMAL';
+            
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 pb-3 border-b border-gray-200">
+                        <div class="text-4xl">${crisis.profile_icon || '👤'}</div>
+                        <div>
+                            <h4 class="font-bold text-gray-900 text-lg">${escapeHtml(crisis.user_name)}</h4>
+                            <p class="text-xs text-gray-500">Request ID: ${crisis.request_id}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-600 font-medium">Categories:</span>
+                        <div class="flex gap-1 flex-wrap justify-end">${categoriesList}</div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-600 font-medium">Urgency:</span>
+                        <span class="font-semibold ${crisis.urgency === 'urgent' ? 'text-red-600' : crisis.urgency === 'high' ? 'text-orange-600' : 'text-blue-600'}">
+                            ${urgencyEmoji} ${urgencyText}
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-start justify-between">
+                        <span class="text-gray-600 font-medium">Location:</span>
+                        <span class="text-sm text-right flex-1 ml-2">${escapeHtml(crisis.location_text || 'Coordinates provided')}</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-600 font-medium">Time:</span>
+                        <span class="text-sm">${new Date(crisis.created_at).toLocaleString()}</span>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-3 mt-2">
+                        <p class="text-xs text-gray-500 mb-1">Coordinates:</p>
+                        <p class="text-xs font-mono">${crisis.latitude.toFixed(6)}, ${crisis.longitude.toFixed(6)}</p>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeCrisisModal() {
+            const modal = document.getElementById('crisisModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        function centerOnUser() {
+            if (userMarker) {
+                const center = userMarker.getLatLng();
+                map.setView(center, 12);
+                userMarker.openPopup();
+                // Close popup after 3 seconds
+                setTimeout(() => {
+                    userMarker.closePopup();
+                }, 3000);
+            } else {
+                document.getElementById('statsBar').innerHTML = '📍 Location not available';
+                setTimeout(() => {
+                    loadUserLocation();
+                }, 1000);
+            }
+        }
+
+        async function refreshMap() {
+            document.getElementById('statsBar').innerHTML = '🔄 Refreshing...';
+            await loadUserLocation();
+            await loadCrises();
+            setTimeout(() => {
+                document.getElementById('statsBar').innerHTML = `✅ Updated - ${document.getElementById('statsBar').innerHTML}`;
+            }, 500);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Expose functions globally
+        window.centerOnUser = centerOnUser;
+        window.refreshMap = refreshMap;
+        window.showCrisisDetailsModal = showCrisisDetailsModal;
+        window.showCrisisDetails = showCrisisDetails;
+        window.closeCrisisModal = closeCrisisModal;
+
+        // Initialize map when DOM is ready
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // Cleanup interval on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) clearInterval(refreshInterval);
+            if (map) map.remove();
+        });
+    </script>
+</body>
+</html>

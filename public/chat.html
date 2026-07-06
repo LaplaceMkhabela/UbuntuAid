@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Chat - UbuntuAid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <style>
+        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.active { opacity: 1; visibility: visible; }
+        .message-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="flex items-center justify-between px-5 h-14 max-w-[800px] mx-auto">
+            <div class="flex items-center">
+                <a href="/" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100">
+                    <span class="material-symbols-outlined text-red-600">arrow_back</span>
+                </a>
+                <div class="ml-2">
+                    <h1 class="font-bold" id="chatName">Loading...</h1>
+                    <p class="text-xs text-gray-500" id="chatStatus">Connecting...</p>
+                </div>
+            </div>
+            <button onclick="showResolveConfirmDialog()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold active:scale-95 transition-all">
+                RESOLVED
+            </button>
+        </div>
+    </header>
+    
+    <main class="max-w-[800px] mx-auto w-full p-5 pb-32 min-h-[calc(100vh-120px)]" id="messagesContainer">
+        <div class="text-center py-10 text-gray-500">Loading conversation...</div>
+    </main>
+    
+    <footer class="fixed bottom-0 max-w-[800px] mx-auto left-0 right-0 bg-white border-t border-gray-200 p-3">
+        <div class="flex gap-2">
+            <input type="text" id="messageInput" placeholder="Type a message..." class="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500">
+            <button onclick="sendMessage()" id="sendBtn" class="bg-red-600 text-white px-6 rounded-xl font-bold active:scale-95 transition-all">
+                SEND
+            </button>
+        </div>
+        <div id="typingIndicator" class="text-xs text-gray-400 mt-1 hidden">Someone is typing...</div>
+    </footer>
+
+    <!-- Resolve Confirmation Modal -->
+    <div id="resolveConfirmModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl transform transition-all scale-95">
+            <div class="bg-green-600 text-white p-5 rounded-t-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-2xl">check_circle</span>
+                    <h3 class="text-xl font-bold">Resolve Request</h3>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="text-center mb-4">
+                    <div class="text-6xl mb-3">✅</div>
+                    <p class="text-gray-800 font-semibold text-lg mb-2">Mark this request as resolved?</p>
+                    <p class="text-gray-500 text-sm">This will close the chat and mark the emergency as completed.</p>
+                </div>
+                <div class="bg-green-50 rounded-xl p-4 mb-6">
+                    <p class="text-sm text-green-800 flex items-start gap-2">
+                        <span class="material-symbols-outlined text-sm">info</span>
+                        <span>Once resolved, you'll no longer be able to send messages in this chat.</span>
+                    </p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="resolveRequest()" class="flex-1 bg-green-600 text-white p-3 rounded-xl font-bold hover:bg-green-700 transition-all">
+                        Yes, Resolve
+                    </button>
+                    <button onclick="closeResolveModal()" class="flex-1 bg-gray-200 text-gray-800 p-3 rounded-xl font-semibold hover:bg-gray-300 transition-all">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Modal -->
+    <div id="messageModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl text-center p-6">
+            <div id="messageIcon" class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center">
+                <span class="material-symbols-outlined text-3xl">check_circle</span>
+            </div>
+            <h3 id="messageTitle" class="text-xl font-bold mb-2">Success!</h3>
+            <p id="messageText" class="text-gray-600 mb-6">Operation completed successfully.</p>
+            <button onclick="closeMessageModal()" class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-all">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestId = urlParams.get('request_id');
+        let socket = null, currentUser = null, otherUser = null;
+        let messageIdSet = new Set();
+        let isSending = false;
+        
+        function showMessage(title, text, isError = false) {
+            const modal = document.getElementById('messageModal');
+            const icon = document.getElementById('messageIcon');
+            const titleEl = document.getElementById('messageTitle');
+            const textEl = document.getElementById('messageText');
+            
+            if (isError) {
+                icon.innerHTML = '<span class="material-symbols-outlined text-red-600 text-3xl">error</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-100';
+                titleEl.className = 'text-xl font-bold text-red-600 mb-2';
+            } else {
+                icon.innerHTML = '<span class="material-symbols-outlined text-green-600 text-3xl">check_circle</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100';
+                titleEl.className = 'text-xl font-bold text-gray-900 mb-2';
+            }
+            
+            titleEl.innerText = title;
+            textEl.innerText = text;
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeMessageModal() {
+            const modal = document.getElementById('messageModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        function showResolveConfirmDialog() {
+            const modal = document.getElementById('resolveConfirmModal');
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeResolveModal() {
+            const modal = document.getElementById('resolveConfirmModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+        
+        async function init() {
+            const user = localStorage.getItem('ubuntuAid_user');
+            if (!user) {
+                showMessage('Not Registered', 'Please register first.', true);
+                setTimeout(() => window.location.href = '/', 2000);
+                return;
+            }
+            currentUser = JSON.parse(user);
+            await loadMatchInfo();
+            setupSocket();
+            await loadMessages();
+            setInterval(loadMessages, 5000);
+        }
+        
+        async function loadMatchInfo() {
+            try {
+                const resp = await fetch(`/api/chat/active/${requestId}`);
+                if (!resp.ok) throw new Error('Failed to load match info');
+                const data = await resp.json();
+                
+                if (data.requester.id === currentUser.id) {
+                    otherUser = data.responder;
+                } else {
+                    otherUser = data.requester;
+                }
+                document.getElementById('chatName').innerHTML = `${otherUser.profile_icon || '👤'} ${otherUser.name}`;
+                document.getElementById('chatStatus').innerText = `${data.match_status} · ${data.requester.id === currentUser.id ? 'Helper assigned' : 'Helping you'}`;
+            } catch (error) {
+                console.error('Error loading match info:', error);
+                showMessage('Error', 'Failed to load chat information', true);
+            }
+        }
+        
+        function setupSocket() {
+            socket = io();
+            socket.on('connect', () => {
+                console.log('Socket connected');
+                socket.emit('register', currentUser.id);
+                socket.emit('join_chat', requestId);
+            });
+            socket.on('new_message', (msg) => {
+                console.log('New message received via socket:', msg);
+                if (msg.from_user_id !== currentUser.id) {
+                    const messageKey = `${msg.from_user_id}_${msg.message}_${msg.created_at}`;
+                    if (!messageIdSet.has(messageKey)) {
+                        messageIdSet.add(messageKey);
+                        appendMessage(msg.from_user_id, msg.message, msg.created_at);
+                        markMessagesAsRead();
+                    }
+                }
+            });
+            socket.on('user_typing', (data) => {
+                const indicator = document.getElementById('typingIndicator');
+                if (data.is_typing && data.user_id === otherUser.id) {
+                    indicator.classList.remove('hidden');
+                } else {
+                    indicator.classList.add('hidden');
+                }
+            });
+            socket.on('connect_error', (error) => {
+                console.error('Socket connection error:', error);
+            });
+        }
+        
+        async function loadMessages() {
+            try {
+                const resp = await fetch(`/api/chat/conversation/${requestId}`);
+                if (!resp.ok) throw new Error('Failed to load messages');
+                const messages = await resp.json();
+                const container = document.getElementById('messagesContainer');
+                
+                if (!messages || messages.length === 0) {
+                    container.innerHTML = '<div class="text-center py-10 text-gray-500">No messages yet. Start the conversation!</div>';
+                    return;
+                }
+                
+                messageIdSet.clear();
+                let messagesHtml = '';
+                for (const m of messages) {
+                    const messageKey = `${m.from_user_id}_${m.message}_${m.created_at}`;
+                    messageIdSet.add(messageKey);
+                    messagesHtml += `
+                        <div class="mb-4 message-in ${m.from_user_id === currentUser.id ? 'text-right' : 'text-left'}">
+                            <div class="inline-block max-w-[80%] ${m.from_user_id === currentUser.id ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-900'} rounded-xl p-3">
+                                <p class="break-words">${escapeHtml(m.message)}</p>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1">${new Date(m.created_at).toLocaleTimeString()}</p>
+                        </div>
+                    `;
+                }
+                
+                container.innerHTML = messagesHtml;
+                container.scrollTop = container.scrollHeight;
+                await markMessagesAsRead();
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+        
+        async function markMessagesAsRead() {
+            try {
+                await fetch('/api/chat/mark-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        request_id: requestId,
+                        user_id: currentUser.id
+                    })
+                });
+            } catch (error) {
+                console.error('Error marking messages as read:', error);
+            }
+        }
+        
+        function appendMessage(fromUserId, message, timestamp) {
+            const container = document.getElementById('messagesContainer');
+            const messageHtml = `
+                <div class="mb-4 message-in text-left">
+                    <div class="inline-block max-w-[80%] bg-gray-200 text-gray-900 rounded-xl p-3">
+                        <p class="break-words">${escapeHtml(message)}</p>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">${new Date(timestamp).toLocaleTimeString()}</p>
+                </div>
+            `;
+            
+            if (container.innerHTML.includes('No messages yet')) {
+                container.innerHTML = messageHtml;
+            } else {
+                container.innerHTML += messageHtml;
+            }
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            if (isSending) return;
+            
+            const input = document.getElementById('messageInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            const sendBtn = document.getElementById('sendBtn');
+            
+            isSending = true;
+            input.value = '';
+            input.disabled = true;
+            sendBtn.disabled = true;
+            sendBtn.classList.add('opacity-50');
+            sendBtn.innerText = 'SENDING...';
+            
+            try {
+                const response = await fetch('/api/chat/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        request_id: requestId,
+                        from_user_id: currentUser.id,
+                        to_user_id: otherUser.id,
+                        message: msg,
+                        use_sms_fallback: false
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to send message');
+                
+                const tempId = Date.now();
+                const messageKey = `${currentUser.id}_${msg}_${tempId}`;
+                messageIdSet.add(messageKey);
+                
+                const container = document.getElementById('messagesContainer');
+                const messageHtml = `
+                    <div class="mb-4 message-in text-right">
+                        <div class="inline-block max-w-[80%] bg-red-600 text-white rounded-xl p-3">
+                            <p class="break-words">${escapeHtml(msg)}</p>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">Just now</p>
+                    </div>
+                `;
+                
+                if (container.innerHTML.includes('No messages yet')) {
+                    container.innerHTML = messageHtml;
+                } else {
+                    container.innerHTML += messageHtml;
+                }
+                container.scrollTop = container.scrollHeight;
+                
+                if (socket && socket.connected) {
+                    socket.emit('send_message', {
+                        request_id: requestId,
+                        from_user_id: currentUser.id,
+                        to_user_id: otherUser.id,
+                        message: msg
+                    });
+                }
+                
+                setTimeout(() => {
+                    loadMessages();
+                }, 500);
+                
+            } catch (error) {
+                console.error('Send message error:', error);
+                showMessage('Error', 'Failed to send message. Please try again.', true);
+                input.value = msg;
+            } finally {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.classList.remove('opacity-50');
+                sendBtn.innerText = 'SEND';
+                input.focus();
+                isSending = false;
+            }
+        }
+        
+        async function resolveRequest() {
+            try {
+                const response = await fetch('/api/requests/resolve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ request_id: requestId })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    closeResolveModal();
+                    showMessage('✅ Request Resolved', 'Thank you for helping your community! This chat will now close.', false);
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Failed to resolve');
+                }
+            } catch (error) {
+                console.error('Resolve request error:', error);
+                closeResolveModal();
+                showMessage('Error', 'Failed to resolve request. Please try again.', true);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        let typingTimer;
+        const messageInput = document.getElementById('messageInput');
+        messageInput.addEventListener('input', () => {
+            if (socket && socket.connected && otherUser) {
+                socket.emit('typing', { 
+                    request_id: requestId, 
+                    user_id: currentUser.id, 
+                    is_typing: true 
+                });
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    socket.emit('typing', { 
+                        request_id: requestId, 
+                        user_id: currentUser.id, 
+                        is_typing: false 
+                    });
+                }, 1000);
+            }
+        });
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        init();
+    </script>
+</body>
+</html>

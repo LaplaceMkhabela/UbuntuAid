@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - UbuntuAid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <style>
+        .modal { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal.active { opacity: 1; visibility: visible; }
+        .fruit-option {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .fruit-option:hover {
+            transform: scale(1.1);
+            background: #fef3c7;
+        }
+        .fruit-option.selected {
+            background: #dc2626;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+        .fruit-option.selected .text-4xl {
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="flex items-center px-5 h-14 max-w-[800px] mx-auto">
+            <a href="/" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100">
+                <span class="material-symbols-outlined text-red-600">arrow_back</span>
+            </a>
+            <h1 class="text-xl font-bold ml-2">My Profile</h1>
+        </div>
+    </header>
+
+    <main class="max-w-[800px] mx-auto w-full p-5 pb-32">
+        <!-- Profile Icon Section -->
+        <div class="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+            <div class="text-center mb-6">
+                <div id="currentIcon" class="text-8xl mb-3">🍎</div>
+                <button onclick="showIconPicker()" class="text-red-600 font-semibold text-sm flex items-center gap-1 mx-auto">
+                    <span class="material-symbols-outlined text-sm">edit</span>
+                    Change Profile Icon
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Name</label>
+                    <input type="text" id="profileName" class="w-full p-3 border border-gray-300 rounded-xl">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                    <input type="tel" id="profilePhone" readonly class="w-full p-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Neighborhood</label>
+                    <input type="text" id="profileNeighborhood" class="w-full p-3 border border-gray-300 rounded-xl">
+                </div>
+            </div>
+            
+            <button onclick="saveProfile()" class="w-full mt-6 bg-red-600 text-white p-3 rounded-xl font-bold hover:bg-red-700 transition-all">
+                Save Changes
+            </button>
+        </div>
+
+        <!-- My Active Requests Section -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600">emergency</span>
+                My Active Requests
+            </h2>
+            <div id="myRequestsList" class="space-y-3">
+                <div class="text-center py-8 text-gray-500">Loading your requests...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Icon Picker Modal -->
+    <div id="iconPickerModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div class="bg-red-600 text-white p-4 rounded-t-2xl">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined">emoji_emotions</span>
+                    Choose Your Icon
+                </h3>
+                <p class="text-red-100 text-sm">Pick a fruit that represents you</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-4 gap-3 mb-6">
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍎" onclick="selectIcon('🍎')">
+                        <span class="text-4xl">🍎</span>
+                        <p class="text-xs mt-1">Apple</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍊" onclick="selectIcon('🍊')">
+                        <span class="text-4xl">🍊</span>
+                        <p class="text-xs mt-1">Orange</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍋" onclick="selectIcon('🍋')">
+                        <span class="text-4xl">🍋</span>
+                        <p class="text-xs mt-1">Lemon</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍌" onclick="selectIcon('🍌')">
+                        <span class="text-4xl">🍌</span>
+                        <p class="text-xs mt-1">Banana</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍉" onclick="selectIcon('🍉')">
+                        <span class="text-4xl">🍉</span>
+                        <p class="text-xs mt-1">Watermelon</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍇" onclick="selectIcon('🍇')">
+                        <span class="text-4xl">🍇</span>
+                        <p class="text-xs mt-1">Grapes</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍓" onclick="selectIcon('🍓')">
+                        <span class="text-4xl">🍓</span>
+                        <p class="text-xs mt-1">Strawberry</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🥝" onclick="selectIcon('🥝')">
+                        <span class="text-4xl">🥝</span>
+                        <p class="text-xs mt-1">Kiwi</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍒" onclick="selectIcon('🍒')">
+                        <span class="text-4xl">🍒</span>
+                        <p class="text-xs mt-1">Cherry</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍑" onclick="selectIcon('🍑')">
+                        <span class="text-4xl">🍑</span>
+                        <p class="text-xs mt-1">Peach</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🍍" onclick="selectIcon('🍍')">
+                        <span class="text-4xl">🍍</span>
+                        <p class="text-xs mt-1">Pineapple</p>
+                    </div>
+                    <div class="fruit-option text-center p-3 rounded-xl cursor-pointer" data-icon="🥭" onclick="selectIcon('🥭')">
+                        <span class="text-4xl">🥭</span>
+                        <p class="text-xs mt-1">Mango</p>
+                    </div>
+                </div>
+                <button onclick="closeIconPicker()" class="w-full bg-gray-200 text-gray-800 p-3 rounded-xl font-semibold hover:bg-gray-300 transition-all">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Request Modal -->
+    <div id="editRequestModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div class="bg-red-600 text-white p-4 rounded-t-2xl">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined">edit</span>
+                    Edit Emergency Request
+                </h3>
+                <p class="text-red-100 text-sm">Update your request details</p>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">What do you need?</label>
+                    <div id="editCategories" class="grid grid-cols-2 gap-2">
+                        <!-- Categories will be populated here -->
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Location / Landmark</label>
+                    <input type="text" id="editLocation" placeholder="e.g., Near the old market" class="w-full p-3 border border-gray-300 rounded-xl">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Urgency Level</label>
+                    <select id="editUrgency" class="w-full p-3 border border-gray-300 rounded-xl">
+                        <option value="urgent">🚨 URGENT - Immediate danger</option>
+                        <option value="high">⚠️ HIGH - Need within hours</option>
+                        <option value="normal">📋 NORMAL - Can wait</option>
+                    </select>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="saveEditedRequest()" class="flex-1 bg-red-600 text-white p-3 rounded-xl font-bold hover:bg-red-700 transition-all">
+                        Save Changes
+                    </button>
+                    <button onclick="closeEditModal()" class="flex-1 bg-gray-200 text-gray-800 p-3 rounded-xl font-semibold hover:bg-gray-300 transition-all">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl">
+            <div class="bg-red-600 text-white p-4 rounded-t-2xl">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined">warning</span>
+                    Delete Request
+                </h3>
+            </div>
+            <div class="p-6 text-center">
+                <div class="text-6xl mb-4">🗑️</div>
+                <p class="text-gray-800 mb-2 font-semibold">Are you sure you want to delete this request?</p>
+                <p class="text-sm text-gray-500 mb-6">This will also delete all associated chat messages. This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button onclick="confirmDelete()" class="flex-1 bg-red-600 text-white p-3 rounded-xl font-bold hover:bg-red-700 transition-all">
+                        Yes, Delete
+                    </button>
+                    <button onclick="closeDeleteModal()" class="flex-1 bg-gray-200 text-gray-800 p-3 rounded-xl font-semibold hover:bg-gray-300 transition-all">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Modal -->
+    <div id="messageModal" class="modal fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 invisible transition-all">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl text-center p-6">
+            <div id="messageIcon" class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center">
+                <span class="material-symbols-outlined text-3xl">check_circle</span>
+            </div>
+            <h3 id="messageTitle" class="text-xl font-bold mb-2">Success!</h3>
+            <p id="messageText" class="text-gray-600 mb-6">Operation completed successfully.</p>
+            <button onclick="closeMessageModal()" class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-all">OK</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let currentEditRequestId = null;
+        let pendingDeleteRequestId = null;
+        let selectedIcon = null;
+
+        function showMessage(title, text, isError = false) {
+            const modal = document.getElementById('messageModal');
+            const icon = document.getElementById('messageIcon');
+            const titleEl = document.getElementById('messageTitle');
+            const textEl = document.getElementById('messageText');
+            
+            if (isError) {
+                icon.innerHTML = '<span class="material-symbols-outlined text-red-600 text-3xl">error</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-100';
+                titleEl.className = 'text-xl font-bold text-red-600 mb-2';
+            } else {
+                icon.innerHTML = '<span class="material-symbols-outlined text-green-600 text-3xl">check_circle</span>';
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100';
+                titleEl.className = 'text-xl font-bold text-gray-900 mb-2';
+            }
+            
+            titleEl.innerText = title;
+            textEl.innerText = text;
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeMessageModal() {
+            const modal = document.getElementById('messageModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        async function loadUserData() {
+            const user = localStorage.getItem('ubuntuAid_user');
+            if (!user) {
+                window.location.href = '/';
+                return;
+            }
+            currentUser = JSON.parse(user);
+            
+            document.getElementById('currentIcon').innerText = currentUser.profile_icon || '🍎';
+            document.getElementById('profileName').value = currentUser.name;
+            document.getElementById('profilePhone').value = currentUser.phone_number;
+            document.getElementById('profileNeighborhood').value = currentUser.neighborhood;
+            
+            loadMyRequests();
+        }
+
+        function showIconPicker() {
+            const modal = document.getElementById('iconPickerModal');
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        function closeIconPicker() {
+            const modal = document.getElementById('iconPickerModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+        }
+
+        function selectIcon(icon) {
+            selectedIcon = icon;
+            document.querySelectorAll('.fruit-option').forEach(opt => {
+                opt.classList.remove('selected');
+                if (opt.querySelector('span').innerText === icon) {
+                    opt.classList.add('selected');
+                }
+            });
+            document.getElementById('currentIcon').innerText = icon;
+            closeIconPicker();
+            saveProfileIcon(icon);
+        }
+
+        async function saveProfileIcon(icon) {
+            try {
+                const response = await fetch('/api/auth/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUser.id, profile_icon: icon })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    localStorage.setItem('ubuntuAid_user', JSON.stringify(currentUser));
+                    showMessage('Icon Updated', 'Your profile icon has been changed!', false);
+                }
+            } catch (error) {
+                console.error('Error saving icon:', error);
+            }
+        }
+
+        async function saveProfile() {
+            const name = document.getElementById('profileName').value;
+            const neighborhood = document.getElementById('profileNeighborhood').value;
+            
+            try {
+                const response = await fetch('/api/auth/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUser.id, 
+                        name, 
+                        neighborhood 
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    localStorage.setItem('ubuntuAid_user', JSON.stringify(currentUser));
+                    showMessage('Profile Updated', 'Your profile has been saved successfully!', false);
+                }
+            } catch (error) {
+                showMessage('Error', 'Failed to update profile', true);
+            }
+        }
+
+        async function loadMyRequests() {
+            try {
+                const response = await fetch(`/api/auth/my-requests/${currentUser.id}`);
+                const requests = await response.json();
+                const container = document.getElementById('myRequestsList');
+                
+                if (requests.length === 0) {
+                    container.innerHTML = '<div class="text-center py-8 text-gray-500">No active requests. Click "I NEED HELP" to create one.</div>';
+                    return;
+                }
+                
+                container.innerHTML = requests.map(req => `
+                    <div class="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex gap-2 flex-wrap">
+                                ${req.categories ? req.categories.split(',').map(c => `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">${c}</span>`).join('') : '<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">No categories</span>'}
+                            </div>
+                            <span class="text-xs text-gray-500">${new Date(req.created_at).toLocaleString()}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">📍 ${req.location_text || 'Location provided'}</p>
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="editRequest('${req.request_id}')" class="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-all flex items-center justify-center gap-1">
+                                <span class="material-symbols-outlined text-sm">edit</span> Edit
+                            </button>
+                            <button onclick="deleteRequest('${req.request_id}')" class="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition-all flex items-center justify-center gap-1">
+                                <span class="material-symbols-outlined text-sm">delete</span> Delete
+                            </button>
+                        </div>
+                        ${req.is_edited ? '<p class="text-xs text-gray-400 mt-2 italic">✏️ Edited</p>' : ''}
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                document.getElementById('myRequestsList').innerHTML = '<div class="text-center py-8 text-red-500">Error loading requests</div>';
+            }
+        }
+
+        async function editRequest(requestId) {
+            currentEditRequestId = requestId;
+            
+            try {
+                // Fetch the specific request details
+                const response = await fetch(`/api/requests/active`);
+                const requests = await response.json();
+                const request = requests.find(r => r.request_id === requestId);
+                
+                if (request) {
+                    document.getElementById('editLocation').value = request.location_text || '';
+                    document.getElementById('editUrgency').value = request.urgency;
+                    
+                    // Populate categories checkboxes
+                    const categoriesContainer = document.getElementById('editCategories');
+                    const allCategories = ['Water', 'Food', 'Shelter', 'Medical', 'Rescue', 'Other'];
+                    const selectedCats = request.categories ? request.categories.split(',') : [];
+                    
+                    categoriesContainer.innerHTML = allCategories.map(cat => `
+                        <label class="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50 transition-all">
+                            <input type="checkbox" value="${cat}" ${selectedCats.includes(cat) ? 'checked' : ''} class="category-checkbox w-4 h-4 text-red-600">
+                            <span class="text-sm">${cat}</span>
+                        </label>
+                    `).join('');
+                    
+                    const modal = document.getElementById('editRequestModal');
+                    modal.classList.remove('invisible', 'opacity-0');
+                    modal.classList.add('visible', 'opacity-100');
+                } else {
+                    showMessage('Error', 'Request not found', true);
+                }
+            } catch (error) {
+                console.error('Error loading request for edit:', error);
+                showMessage('Error', 'Failed to load request details', true);
+            }
+        }
+
+        async function saveEditedRequest() {
+            const categories = Array.from(document.querySelectorAll('.category-checkbox:checked')).map(cb => cb.value);
+            const location_text = document.getElementById('editLocation').value;
+            const urgency = document.getElementById('editUrgency').value;
+            
+            if (categories.length === 0) {
+                showMessage('Error', 'Please select at least one category', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/requests/edit/${currentEditRequestId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        categories,
+                        location_text,
+                        urgency
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('Request Updated', 'Your emergency request has been updated successfully.', false);
+                    closeEditModal();
+                    loadMyRequests();
+                    // Also refresh the main dashboard stats if needed
+                    if (window.opener) {
+                        window.opener.location.reload();
+                    }
+                } else {
+                    showMessage('Error', data.error || 'Failed to update request', true);
+                }
+            } catch (error) {
+                console.error('Error saving edit:', error);
+                showMessage('Error', 'Failed to update request. Please try again.', true);
+            }
+        }
+
+        function deleteRequest(requestId) {
+            pendingDeleteRequestId = requestId;
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.classList.remove('invisible', 'opacity-0');
+            modal.classList.add('visible', 'opacity-100');
+        }
+
+        async function confirmDelete() {
+            if (!pendingDeleteRequestId) return;
+            
+            try {
+                const response = await fetch(`/api/requests/delete/${pendingDeleteRequestId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUser.id })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('Request Deleted', 'Your emergency request and associated chat have been removed.', false);
+                    closeDeleteModal();
+                    loadMyRequests();
+                    // Refresh dashboard stats if window is still open
+                    if (window.opener) {
+                        window.opener.location.reload();
+                    }
+                } else {
+                    showMessage('Error', data.error || 'Failed to delete request', true);
+                    closeDeleteModal();
+                }
+            } catch (error) {
+                console.error('Error deleting request:', error);
+                showMessage('Error', 'Failed to delete request. Please try again.', true);
+                closeDeleteModal();
+            }
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editRequestModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+            currentEditRequestId = null;
+        }
+
+        function closeDeleteModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.classList.add('invisible', 'opacity-0');
+            modal.classList.remove('visible', 'opacity-100');
+            pendingDeleteRequestId = null;
+        }
+
+        loadUserData();
+    </script>
+</body>
+</html>
